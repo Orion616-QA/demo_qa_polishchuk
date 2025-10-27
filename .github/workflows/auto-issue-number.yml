@@ -1,0 +1,36 @@
+name: Auto number issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-number:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Get latest issue number with prefix
+        id: get_last
+        run: |
+          prefix="DEMO-QA"
+          last_number=$(gh issue list --limit 100 --json title --jq \
+            "[.[].title | capture(\"${prefix}-(?<num>[0-9]+)\")?.num | tonumber] | max // 0")
+          echo "last_number=$last_number" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate new issue number
+        id: new_number
+        run: |
+          new_number=$(expr ${{ steps.get_last.outputs.last_number }} + 1)
+          echo "new_id=DEMO-QA-$(printf \"%03d\" $new_number)" >> $GITHUB_OUTPUT
+
+      - name: Rename issue
+        run: |
+          new_title="${{ steps.new_number.outputs.new_id }} ${{ github.event.issue.title }}"
+          gh issue edit ${{ github.event.issue.number }} --title "$new_title"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
